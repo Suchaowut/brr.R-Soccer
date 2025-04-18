@@ -70,21 +70,6 @@ void AtanTrack2() {
             vecCurve = 180;
           }
           holonomic(currentSpeed, vecCurve, rot_w);
-          // if (abs(pvYaw) > 50) {
-          //   if (lastYaw < 0) {
-          //     vecCurve = 0;
-          //   } else {
-          //     vecCurve = 180;
-          //   }
-          //   holonomic(60, vecCurve, rot_w);
-          // } else {
-          //   if (lastYaw < 0) {
-          //     vecCurve = 0;
-          //   } else {
-          //     vecCurve = 180;
-          //   }
-          //   holonomic(40, vecCurve, rot_w);
-          // }
           if (abs(pvYaw) <= 5) break;
         }
       }
