@@ -47,7 +47,8 @@ void AtanTrack2() {
           wheel(0, 0, 0);
           SetYaw();
           getIMU();
-          beep();
+          // beep();
+          lastYaw = pvYaw;
           Dribbling();
         }
       } else if (!(abs(pvYaw) <= 10)) {
@@ -62,7 +63,7 @@ void AtanTrack2() {
           rot_w = constrain(rot_w, -100, 100);
 
           int targetSpeed = (abs(pvYaw) > 50) ? 60 : 40;
-          currentSpeed = 0.8 * currentSpeed + 0.2 * targetSpeed;  // smoothing speed
+          int currentSpeed = 0.8 * currentSpeed + 0.2 * targetSpeed;  // smoothing speed
           if (lastYaw < 0) {
             vecCurve = 0;
           } else {
@@ -87,66 +88,63 @@ void AtanTrack2() {
           if (abs(pvYaw) <= 5) break;
         }
       }
-      /*else if (SethaPos <= 10) {
-        holonomic(80, 300, 0);
-      } else if (SethaPos >= 170) {
-        holonomic(80, 240, 0);
-      }*/
     }
   }
 }
 
 void Dribbling() {
-  float angleToGoal = 90;
+  float angleToGoal = 90, goalEstX, goalEstY, goalEstWidth;
   while (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-    if (analogRead(SensC) < SenCRef) {
-      if (huskylens.updateBlocks() && !(huskylens.blockSize[2] || huskylens.blockSize[3])) {
-        getIMU();
-        heading(100, angleToGoal, 0);
-      } else {
-        // track goal พร้อมลูก
-        getIMU();
-        ballPosX = huskylens.blockInfo[1][0].x;
-        ballPosY = huskylens.blockInfo[1][0].y;
+    if (huskylens.updateBlocks() && !(huskylens.blockSize[2] || huskylens.blockSize[3])) {
+      getIMU();
+      heading(100, angleToGoal, 0);
+    } else {
+      // track goal พร้อมลูก
+      getIMU();
+      ballPosX = huskylens.blockInfo[1][0].x;
+      ballPosY = huskylens.blockInfo[1][0].y;
 
-        float goalEstX = 160;
-        float goalEstY = 20;
+      if (huskylens.updateBlocks() && huskylens.blockSize[2]) {
+        goalEstX = huskylens.blockInfo[2][0].x;
+        goalEstY = huskylens.blockInfo[2][0].y;
+        goalEstWidth = huskylens.blockInfo[2][0].width;
+      } else if (huskylens.updateBlocks() && huskylens.blockSize[3]) {
+        goalEstX = huskylens.blockInfo[3][0].x;
+        goalEstY = huskylens.blockInfo[3][0].y;
+        goalEstWidth = huskylens.blockInfo[3][0].width;
+      }
 
-        if (huskylens.updateBlocks() && huskylens.blockSize[2]) {
-          goalEstX = huskylens.blockInfo[2][0].x;
-          goalEstY = huskylens.blockInfo[2][0].y;
-        } else if (huskylens.updateBlocks() && huskylens.blockSize[3]) {
-          goalEstX = huskylens.blockInfo[3][0].x;
-          goalEstY = huskylens.blockInfo[3][0].y;
-        }
+      float goalXLeft = goalEstX - goalEstWidth / 2.0;
+      float goalXRight = goalEstX + goalEstWidth / 2.0;
 
-        float dx = goalEstX - ballPosX;
-        float dy = goalEstY - ballPosY;
-        float angleToGoal = atan2(dy, dx) * (180 / PI);
-        // angleToGoal += 90;
-        if (angleToGoal < 0) angleToGoal += 360;
-        if (angleToGoal > 180) angleToGoal = 180 - (angleToGoal - 180);
+      float distanceToEdge = min(abs(ballPosX - goalXLeft), abs(ballPosX - goalXRight));
+
+      float dx = goalEstX - ballPosX;
+      float dy = goalEstY - ballPosY;
+      float angleToGoal = atan2(dy, dx) * (180 / PI);
+      if (angleToGoal < 0) angleToGoal += 360;
+      if (angleToGoal > 180) angleToGoal = 180 - (angleToGoal - 180);
+      if (distanceToEdge < 20) {
         angleToGoal = constrain(angleToGoal, 30, 150);
-
-        rot_error = 160 - ballPosX;
-        rot_d = rot_error - rot_pError;
-        rot_w = (rot_error * 0.25) + (rot_d * rot_Kd);
-        rot_w = constrain(rot_w, -30, 30);
-        rot_pError = rot_error;
-
-        // holonomic(100, angleToGoal, rot_w);
+      } else {
+        angleToGoal = constrain(angleToGoal, 5, 175);
+      }
+      if (ballPosY < 210) {
+        heading(100, 90, 0);
+      } else {
         heading(100, angleToGoal, 0);
       }
-    } else {
-      holonomic(0, 0, 0);
-      shoot();
-      delay(100);
-      holonomic(60, 270, 0);
-      delay(300);
-      holonomic(0, 0, 0);
-      reload();
-      holonomic(0, 0, 0);
-      delay(1000);
+      if (abs(ballPosX - goalEstWidth) < 10 && ballPosY > 220 && analogRead(SensC) > SenCRef) {
+        holonomic(0, 0, 0);
+        shoot();
+        delay(100);
+        holonomic(60, 270, 0);
+        delay(300);
+        holonomic(0, 0, 0);
+        reload();
+        holonomic(0, 0, 0);
+        delay(1000);
+      }
     }
   }
 }
@@ -154,6 +152,7 @@ void Dribbling() {
 void TouchLine() {
   while (1) {
     if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+      lastYaw = pvYaw;
       if (analogRead(SensC) > SenCRef) {
         holonomic(0, 0, 0);
         delay(100);
