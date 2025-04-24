@@ -8,16 +8,19 @@ POP32_Huskylens huskylens;
 #define SensC A1
 #define SensL A2
 #define SensR A3
-#define SenCRef 1572
-#define SenLRef 2140
-#define SenRRef 1677
+#define SenCRef 1680
+#define SenLRef 1640
+#define SenRRef 1945
+
+unsigned long lastSeenBallTime = 0;
+bool returningToGoal = false;
 
 // main move atan //*/
-#define Xaxis_Kp 1.5
-#define Xaxis_Kd 0.0
+#define Xaxis_Kp 1.2
+#define Xaxis_Kd 0.7
 
 #define Yaxis_Kp 1.5
-#define Yaxis_Kd 0.0
+#define Yaxis_Kd 0.25
 ////////    ////////*/
 //
 #define RotYel_Kp 0.5
@@ -32,6 +35,7 @@ POP32_Huskylens huskylens;
 
 uint8_t rxCnt = 0, rxBuf[8];
 float pvYaw, lastYaw;
+float realYaw;
 
 #define head_Kp 1.0f
 #define head_Ki 0.0f
@@ -41,7 +45,7 @@ unsigned long loopTimer;
 
 #define rot_Kp 2.0
 #define rot_Ki 0.0
-#define rot_Kd 0.0
+#define rot_Kd 0.5
 #define sp_rot 160      // ค่า setpoint ที่ลูกบอลอยู่ตรงกลางกล้องแกน x  320/2 = 160
 #define rotErrorGap 15  // ค่า Error ที่ยอมให้หุ่นหยุดทำงาน
 #define idleSpd 45      // ค่าความเร็วการหมุนเมื่อไม่เจอลูกบอล
@@ -105,12 +109,14 @@ bool getIMU() {
       rxCnt = 0;
       if (rxBuf[0] == 0xAA && rxBuf[7] == 0x55) {  // data package is correct
         pvYaw = (int16_t)(rxBuf[1] << 8 | rxBuf[2]) / 100.f;
+        // realYaw = pvYaw < 0 ? pvYaw+360 : pvYaw;
         return true;
       }
     }
   }
   return false;
 }
+
 void Auto_zero() {
   zeroYaw();
   getIMU();
@@ -122,7 +128,7 @@ void Auto_zero() {
       oled.text(3, 6, "Yaw: %f ", pvYaw);
       oled.show();
       //beep();
-      if (millis() - timer > 5000) {
+      if (millis() - timer > 2000) {
         zeroYaw();
         timer = millis();
       }
@@ -166,8 +172,17 @@ void reload() {
   }
   motor(4, 0);
 }
-
+float erYaw;
 void heading(float spd, float theta, float spYaw) {
+  // if(spYaw >= 0 && pvYaw < 0) {
+  //   erYaw = pvYaw + 360;
+  // }else if (spYaw < 0 && pvYaw >= 0){
+  //   erYaw = pvYaw- 360;
+  // }
+  // else {
+  //   erYaw = pvYaw;
+  // }
+  // head_error = spYaw - erYaw;
   head_error = spYaw - pvYaw;
   head_i = head_i + head_error;
   head_i = constrain(head_i, -50, 50);
@@ -176,6 +191,8 @@ void heading(float spd, float theta, float spYaw) {
   head_w = constrain(head_w, -50, 50);
   holonomic(spd, theta, head_w);
   head_pError = head_error;
+
+  // Serial.println(head_error);
 }
 
 void SetYaw() {
@@ -355,12 +372,14 @@ void menu() {
 
     oled.show();
   }
-
+  
   oled.text(2, 0, "                   ");
   oled.text(3, 0, "                   ");
   firstRun = false;  // หลังจากรอบแรก จะไม่ต้องรอกดปุ่ม OK อีก
   run_count++;
   // sound(777, 100);
+  oled.fillScreen(BLACK);
+  oled.show();
   menuItems[x - 1].action();
 }
 
@@ -373,6 +392,7 @@ void setup() {
   }
   delay(1000);
   zeroYaw();
+  // Auto_zero();
   // while(1){
   //   updateIMU();
   //   oled.text(3, 6, "Yaw: %f ", pvYaw);
@@ -383,6 +403,9 @@ void setup() {
 }
 void loop() {
   menu();
+  // getIMU();
+  // Serial.println(pvYaw);
+  // heading(0, 0, 180);
   // readyShoot();
   // if ((huskylens.updateBlocks() && huskylens.blockSize[1])) {
   //   // lastGoalCoord = lastGoalPos();
