@@ -410,7 +410,7 @@ void TouchLine() {
       //   }
       //   getIMU();
       // }
-      long nubL, nubR, vecCurveV;
+      int nubL, nubR, vecCurveV;
       loopTimer = millis();
       // while (millis() - loopTimer <= 3000) {
       while (1) {
@@ -431,7 +431,7 @@ void TouchLine() {
           FoundLeft = 0;
           FoundRight = 0;
           loopTimer = millis();
-          holonomic(80, 90, 0)
+          holonomic(80, 90, 0);
           vecCurveV = 90;
           while (millis() - loopTimer <= 1500) {
             getIMU();

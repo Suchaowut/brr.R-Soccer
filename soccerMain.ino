@@ -47,7 +47,7 @@ unsigned long loopTimer;
 #define rot_Ki 0.0
 #define rot_Kd 0.5
 #define sp_rot 160      // ค่า setpoint ที่ลูกบอลอยู่ตรงกลางกล้องแกน x  320/2 = 160
-#define rotErrorGap 15  // ค่า Error ที่ยอมให้หุ่นหยุดทำงาน
+#define rotErrorGap 10  // ค่า Error ที่ยอมให้หุ่นหยุดทำงาน
 #define idleSpd 45      // ค่าความเร็วการหมุนเมื่อไม่เจอลูกบอล
 float rot_error, rot_pError, rot_i, rot_d, rot_w;
 int ballPosX;
@@ -55,8 +55,7 @@ int ballPosX;
 #define fli_Kp 1.2  //0.65
 #define fli_Ki 0.0
 #define fli_Kd 0.0
-#define flingErrorGap 15  // ค่า Error ที่ยอมให้หุ่นหยุดทำงาน
-float spFli = 160;        // ค่า setpoint ที่ยอมให้ลูกบอลอยู่ใกล้หุ่นมากที่สุด อาจเริ่มที่จุดกลางจอ แกน Y
+#define flingErrorGap 10  // ค่า Error ที่ยอมให้หุ่นหยุดทำงาน
 float fli_error, fli_pError, fli_i, fli_d, fli_spd;
 int ballPosY;
 
@@ -264,31 +263,31 @@ float ReadSeTha() {
   }
 }
 
-void ReadgoalPos() {
-  while (1) {
-    if (huskylens.updateBlocks() && huskylens.blockSize[1] && huskylens.blockSize[3]) {
-      float goalPosX = huskylens.blockInfo[3][0].x;
-      float goalPosY = huskylens.blockInfo[3][0].y;
-      float QuaDrantX = huskylens.blockInfo[3][0].x - 150;
-      float QuaDrantY = 180 - huskylens.blockInfo[3][0].y;
-      float TanTheta = QuaDrantY / QuaDrantX;
-      float Setha = atan(TanTheta) * (180 / PI);
-      float SethaPos;
-      if (QuaDrantX >= 0 && QuaDrantY >= 0) {  //QuaDrant1
-        SethaPos = Setha;
-      } else if (QuaDrantX < 0 && QuaDrantY >= 0) {  //QuaDrant2
-        SethaPos = 180 + Setha;
-      }
-      Serial.print("goalPosX = ");
-      Serial.println(goalPosX);
-      Serial.print("goalPosY = ");
-      Serial.println(goalPosY);
-      Serial.print("Setha = ");
-      Serial.println(Setha);
-      Serial.println("///////////////////////////////////////////");
-    }
-  }
-}
+// void ReadgoalPos() {
+//   while (1) {
+//     if (huskylens.updateBlocks() && huskylens.blockSize[1] && huskylens.blockSize[3]) {
+//       float goalPosX = huskylens.blockInfo[3][0].x;
+//       float goalPosY = huskylens.blockInfo[3][0].y;
+//       float QuaDrantX = huskylens.blockInfo[3][0].x - 150;
+//       float QuaDrantY = 180 - huskylens.blockInfo[3][0].y;
+//       float TanTheta = QuaDrantY / QuaDrantX;
+//       float Setha = atan(TanTheta) * (180 / PI);
+//       float SethaPos;
+//       if (QuaDrantX >= 0 && QuaDrantY >= 0) {  //QuaDrant1
+//         SethaPos = Setha;
+//       } else if (QuaDrantX < 0 && QuaDrantY >= 0) {  //QuaDrant2
+//         SethaPos = 180 + Setha;
+//       }
+//       Serial.print("goalPosX = ");
+//       Serial.println(goalPosX);
+//       Serial.print("goalPosY = ");
+//       Serial.println(goalPosY);
+//       Serial.print("Setha = ");
+//       Serial.println(Setha);
+//       Serial.println("///////////////////////////////////////////");
+//     }
+//   }
+// }
 
 void ShootAndReload() {
   shoot();
@@ -321,8 +320,8 @@ struct MenuItem {
 };
 
 MenuItem menuItems[] = {
-  { "Normal V.1", Normal_V1 },
   { "TouchLine", TouchLine },
+  { "SmartATK", SmartATK },
   { "Shoot&load", ShootAndReload },
   { "CoordsBall", CoordsBall },
   { "check Sens", chksens }
@@ -334,15 +333,22 @@ bool firstRun = true;  // ตัวแปรตรวจสอบว่ารอ
 int run_count = 0;
 
 void menu() {
-  int x = 1;
+  int x = 1, lastX = 1;;
   long startTime;
   if (firstRun == false) startTime = millis();
 
   x = knob(1, menuCount);
+  lastX = x;
 
   while (firstRun ? !SW_OK() : (millis() - startTime < 5000 && !SW_OK() && run_count < 2)) { /* firstRun == true ให้ใช้เงื่อนไข A → !SW_OK() (รอจนกว่าจะกดปุ่ม OK)
                                                                                                 firstRun == false ให้ใช้เงื่อนไข B → (millis() - startTime < 5000 && !SW_OK()) ไม่มีการกด OK ภายใน 5 วิ จะวิ่งเอง*/
     x = knob(1, menuCount);
+
+    if (x != lastX) {
+      oled.fillScreen(BLACK);
+      oled.show();
+      lastX = x;
+    }
 
     if (SW_A()) {
       Auto_zero();
@@ -354,19 +360,19 @@ void menu() {
 
     // แสดงเมนูปัจจุบัน
     char modeText[32];
-    snprintf(modeText, sizeof(modeText), "Mode: %s    ", menuItems[x - 1].name);
+    snprintf(modeText, sizeof(modeText), "Mode: %s", menuItems[x - 1].name);
     oled.text(0, 0, modeText);
 
     // แสดงเมนูก่อนหน้าและถัดไป
-    const char* prev = (x > 1) ? menuItems[x - 2].name : "-       ";
-    const char* next = (x < menuCount) ? menuItems[x].name : "-        ";
+    const char* prev = (x > 1) ? menuItems[x - 2].name : "-";
+    const char* next = (x < menuCount) ? menuItems[x].name : "-";
 
     char nexText[48], preText[48];
 
     // snprintf(navText, sizeof(navText), "Back: %s      Next: %s     ", prev, next);
     // oled.text(2, 0, navText);
-    snprintf(preText, sizeof(preText), "<: %s     ", prev);
-    snprintf(nexText, sizeof(nexText), ">: %s     ", next);
+    snprintf(preText, sizeof(preText), "<: %s", prev);
+    snprintf(nexText, sizeof(nexText), ">: %s", next);
     oled.text(2, 0, preText);
     oled.text(3, 0, nexText);
 
