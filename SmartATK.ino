@@ -94,7 +94,7 @@ void Runto() {
   if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
     ballPosX = huskylens.blockInfo[1][0].x;
     ballPosY = huskylens.blockInfo[1][0].y;
-    float QuaDrantX = huskylens.blockInfo[1][0].x - 10;
+    float QuaDrantX = huskylens.blockInfo[1][0].x - 160;
     float QuaDrantY = 180 - huskylens.blockInfo[1][0].y;
     float TanTheta = QuaDrantY / QuaDrantX;
     float Setha = atan(TanTheta) * (180 / PI);
