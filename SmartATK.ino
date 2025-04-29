@@ -167,10 +167,19 @@ void Dribbler() {
     ballPosX = huskylens.blockInfo[1][0].x;
     ballPosY = huskylens.blockInfo[1][0].y;
     rot_error = 160 - ballPosX;
-    rot_d = rot_error - rot_pError;
-    rot_pError = rot_error;
-    rot_w = (rot_error * rot_Kp) + (rot_d * rot_Kd);
-    rot_w = constrain(rot_w, -100, 100);
+    
+    // Smooth error ด้วยค่าเฉลี่ยเคลื่อนที่
+    float smooth_rot_error = (rot_error * 0.4 + rot_pError * 0.6);
+    rot_d = smooth_rot_error - rot_pError;
+    rot_pError = smooth_rot_error;
+    
+    if (abs(rot_error) < 5) {
+      rot_w = 0;  // หยุดหมุนเมื่อใกล้ศูนย์
+    } else if (abs(rot_error) < 15) {
+      rot_w = constrain(rot_error * 0.3 + rot_d * 0.05, -40, 40);  // หมุนนิ่ม
+    } else {
+      rot_w = constrain(rot_error * rot_Kp + rot_d * rot_Kd, -100, 100);  // ปกติ
+    }
 
     Yaxis_Error = 160 - ballPosY;
     Yaxis_D = Yaxis_Error - Yaxis_PvEror;
@@ -219,10 +228,13 @@ void Dribbler() {
 
     float xSpeed = calculateSoftApproachSpeed(ballPosX, (goalLeft + goalRight) / 2, 80, 40, 15);
 
+    // === ตัดสินใจเคลื่อนที่ ===
     if (Yaxis_Error > 15) {
-      holonomic(Yaxis_spd, 90, rot_w);  // ยังไม่เข้าใกล้บอล → วิ่งเข้า
+      holonomic(Yaxis_spd, 90, rot_w);  // ยังหาบอลอยู่
+    } else if (abs(rot_error) < 15) {
+      holonomic(xSpeed, theta, 0);  // วิ่งเข้าโกลตรงๆ
     } else {
-      holonomic(xSpeed, theta, rot_w);  // ใกล้บอล → หมุนให้บอลอยู่ตรงกับโกลมากที่สุด
+      holonomic(xSpeed, theta, rot_w);  // เลี้ยงลูกพร้อมหมุนเข้าโกล
     }
   }
 }
