@@ -166,19 +166,19 @@ void Dribbler() {
     ReadgoalPos();
     ballPosX = huskylens.blockInfo[1][0].x;
     ballPosY = huskylens.blockInfo[1][0].y;
-    rot_error = 160 - ballPosX;
     
     // Smooth error ด้วยค่าเฉลี่ยเคลื่อนที่
-    float smooth_rot_error = (rot_error * 0.4 + rot_pError * 0.6);
-    rot_d = smooth_rot_error - rot_pError;
-    rot_pError = smooth_rot_error;
+    rot_error = 170 - ballPosX;
+    // float smooth_rot_error = (rot_error * 0.4 + rot_pError * 0.6);
+    rot_d = rot_error - rot_pError;
+    rot_pError = rot_error;
     
-    if (abs(rot_error) < 5) {
+    if (abs(rot_error) < 8) {
       rot_w = 0;  // หยุดหมุนเมื่อใกล้ศูนย์
-    } else if (abs(rot_error) < 15) {
-      rot_w = constrain(rot_error * 0.3 + rot_d * 0.05, -40, 40);  // หมุนนิ่ม
+    } else if (abs(rot_error) < 50) {
+      rot_w = constrain(rot_error * 0.13 + rot_d * 0.41, -25, 25);  // หมุนนิ่ม
     } else {
-      rot_w = constrain(rot_error * rot_Kp + rot_d * rot_Kd, -100, 100);  // ปกติ
+      rot_w = constrain(rot_error * rot_Kp + rot_d * rot_Kd, -40, 40);  // ปกติ
     }
 
     Yaxis_Error = 160 - ballPosY;
@@ -196,14 +196,14 @@ void Dribbler() {
     float theta = 90;
 
     if (lastGoalAngle > 105) {
-      theta = 180;
-    } else if (lastGoalAngle < 75) {
       theta = 0;
+    } else if (lastGoalAngle < 75) {
+      theta = 180;
     } else {
       theta = 90;
     }
 
-    if (!(huskylens.updateBlocks() && huskylens.blockSize[3] || huskylens.blockSize[2])) {
+    if (huskylens.updateBlocks() && !(huskylens.blockSize[3] || huskylens.blockSize[2])) {
       if (millis() - NoGoalTime >= 600) {
         if (theta > 90 && reverse == false) {
           theta = 180;
@@ -228,13 +228,12 @@ void Dribbler() {
 
     float xSpeed = calculateSoftApproachSpeed(ballPosX, (goalLeft + goalRight) / 2, 80, 40, 15);
 
-    // === ตัดสินใจเคลื่อนที่ ===
     if (Yaxis_Error > 15) {
-      holonomic(Yaxis_spd, 90, rot_w);  // ยังหาบอลอยู่
-    } else if (abs(rot_error) < 15) {
-      holonomic(xSpeed, theta, 0);  // วิ่งเข้าโกลตรงๆ
+      holonomic(Yaxis_spd, 90, rot_w);
+    } else if (abs(rot_error) < 8) {
+      holonomic(50, theta, 0);
     } else {
-      holonomic(xSpeed, theta, rot_w);  // เลี้ยงลูกพร้อมหมุนเข้าโกล
+      holonomic(50, theta, rot_w);
     }
   }
 }

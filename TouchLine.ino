@@ -202,11 +202,11 @@
 
 void TrackXaxis2() {
   if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-    Xaxis_Error = huskylens.blockInfo[1][0].x - 165;
+    Xaxis_Error = huskylens.blockInfo[1][0].x - 170;
     Xaxis_D = Xaxis_Error - Xaxis_PvEror;
     Xaxis_spd = (Xaxis_Error * Xaxis_Kp) + (Xaxis_D * Xaxis_Kd);
-    if (abs(Xaxis_spd) < 6 && abs(Xaxis_Error) <= 3) {
-      Xaxis_spd = (Xaxis_spd > 0) ? 6 : -6;
+    if (abs(Xaxis_spd) < 15 && abs(Xaxis_Error) >= 3) {
+      Xaxis_spd = (Xaxis_spd > 0) ? 15 : -15;
     } else Xaxis_spd = constrain(Xaxis_spd, -80, 80);
     Xaxis_PvEror = Xaxis_Error;
     getIMU();
@@ -303,6 +303,7 @@ void AtanTrack2() {
 
 float angleToGoal = 90;
 float previousAngle = 90;
+int lastSeenGoal = 1;  // front
 
 void Dribbling() {
   float goalEstX = 160, goalEstY = 120, goalEstWidth = 50;
@@ -326,6 +327,12 @@ void Dribbling() {
       continue;
     }
 
+    if (goalEstX - 170 < 0) lastSeenGoal = 1;
+    else if (goalEstX - 170 > 0) lastSeenGoal = 2;
+    else lastSeenGoal = 0;
+
+    float goalLeft = goalEstX - goalEstWidth / 2.0;
+    float goalRight = goalEstX + goalEstWidth / 2.0;
     float centerGoalX = goalEstX;
     float diffFromCenter = ballPosX - centerGoalX;
 
@@ -337,24 +344,65 @@ void Dribbling() {
       targetAngle = 90 + offsetRatio * maxAngleOffset;
     }
 
-    if (ballPosY < 215) {
+    if (ballPosY < 220) {
       targetAngle = 90;
     }
 
     angleToGoal = previousAngle * 0.7 + targetAngle * 0.3;
     previousAngle = angleToGoal;
-    
+    lastangleToGoal = angleToGoal;
 
-    if (ballPosY < 220) {
+
+    if (ballPosY < 225) {
       angleToGoal = 90;
     }
 
+    bool ballInGoalArea = false;
+    if (goalEstWidth > 0) {
+      ballInGoalArea = (ballPosX >= goalLeft && ballPosX <= goalRight);
+    }
+
+    float error = lastangleToGoal - 90;
+    // if(huskylens.updateBlocks() && !(huskylens.blockSize[2] && huskylens.blockSize[3])) {
+    //   if(){
+    //     error = angleToGoal - 90;
+    //   }
+    // }
+    if (error > 180) error -= 360;
+    if (error < -180) error += 360;
+
+    int rott = 0;
+
+    // หากโกลอยู่ที่ขอบซ้ายหรือขวา หนุนให้หมุนแรงขึ้น
+    if (goalEstX < 110 || goalEstX > 210) {
+      rott = constrain(error * 2, -30, 30);  // หมุนเร็วขึ้นเมื่อโกลอยู่ขอบ
+    } else if (goalLeft <= 170 && 170 <= goalRight) {
+      // ศูนย์กลางภาพ (170) อยู่ในเขตโกล — หมุนช้าลง
+      rott = constrain(error, -10, 10);
+    }
+    float dxBall = ballPosX - 170;
+    float dyBall = 200 - ballPosY;
+
+    float rawAngle = atan2(dyBall, dxBall) * 180.0 / PI;
+
+    float angleToBall = 90 - rawAngle;  // เปลี่ยนให้ 90 เป็นด้านหน้า
+
+    if (angleToBall < 0) angleToBall += 360;
+    if (angleToBall > 180) angleToBall = 180 - (angleToBall - 180);  // กลับซ้ายขวาให้ได้ช่วง 0–180
+
+    // float oppositeAngle = 180 - angleToGoal;
+
     // int speed = map(ballPosY, 20, 225, 40, 100);
     // speed = constrain(speed, 40, 100);
+    // if (abs(170 - ballPosX) < 15 && ballPosY > 225 && abs(goalEstX - 170) > 0) holonomic(100, angleToGoal, rott);
+    if (abs(170 - ballPosX) < 10 && ballPosY > 215 && abs(goalEstX - 170) > 10 && !ballInGoalArea) holonomic(100, 180 - angleToGoal, rott);
+    else if (ballPosX <= 150 || ballPosX >= 200) holonomic(100, angleToBall, 0);
+    else if ((ballPosX > 150 && ballPosX < 200) && ballInGoalArea) holonomic(100, angleToGoal, 0);
+    else if ((ballPosX > 150 && ballPosX < 200) && !ballInGoalArea) heading(100, angleToGoal, 0);
+    // else holonomic(100, angleToGoal, 0);
+    // if(ballPosY < 210) heading(100, angleToGoal, 0);
 
-    heading(100, angleToGoal, 0);
-
-    if (abs(ballPosX - goalEstWidth) < 10 && ballPosY > 220 && analogRead(SensC) > SenCRef) {
+    if (goalEstY > 30 && ballPosY > 230 && ((analogRead(SensC) > SenCRef && ballInGoalArea) || (ballPosX >= goalLeft + 10 && ballPosX <= goalRight - 10))) {
       holonomic(0, 0, 0);
       shoot();
       delay(100);
@@ -362,16 +410,18 @@ void Dribbling() {
       delay(300);
       holonomic(0, 0, 0);
       reload();
+      delay(100);
       holonomic(0, 0, 0);
-      delay(1000);
+      // delay(1000);
     }
   }
 }
 
 void TouchLine() {
   while (1) {
+    reload();
     int FoundLeft = 0, FoundRight = 0, FoundCent = 0;
-    if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+    if (huskylens.updateBlocks() && huskylens.blockSize[1]) {  // ball found
       // lastYaw = pvYaw;
       /*if (analogRead(SensC) > SenCRef) {
         holonomic(0, 0, 0);
@@ -380,7 +430,8 @@ void TouchLine() {
         delay(100);
         holonomic(80, 270, 0);
         delay(200);
-      } else */if (analogRead(SensL) > SenLRef) {
+      } else */
+      if (analogRead(SensL) > SenLRef) {
         holonomic(0, 20, 0);
         delay(100);
         holonomic(50, 20, 0);
@@ -413,7 +464,8 @@ void TouchLine() {
       int nubL, nubR, vecCurveV;
       loopTimer = millis();
       // while (millis() - loopTimer <= 3000) {
-      while (1) {
+      while (!(huskylens.updateBlocks() && huskylens.blockSize[1])) {
+        reload();
         if (analogRead(SensR) > SenRRef) {
           FoundRight = 1;
         }
@@ -431,9 +483,42 @@ void TouchLine() {
           FoundLeft = 0;
           FoundRight = 0;
           loopTimer = millis();
-          holonomic(80, 90, 0);
           vecCurveV = 90;
-          while (millis() - loopTimer <= 1500) {
+          // delay(500);
+          while (millis() - loopTimer <= 500) {
+            holonomic(80, vecCurveV, 0);
+            if (analogRead(SensC) > SenCRef) {
+              FoundCent = 1;
+              vecCurveV = 270;
+              break;
+            }
+            if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+              break;
+            }
+          }
+          // vecCurveV = 270;
+          while (FoundCent == 1 && millis() - loopTimer <= 500) {
+            holonomic(80, vecCurveV, 0);
+            if (analogRead(SensR) > SenRRef) {
+              FoundRight = 1;
+            }
+            if (analogRead(SensL) > SenLRef) {
+              FoundLeft = 1;
+            }
+            if (FoundLeft == 1 && FoundRight == 1) {
+              vecCurveV = 90;
+            }
+            if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+              break;
+            }
+          }
+          loopTimer = millis();
+          while (FoundCent == 0 && (millis() - loopTimer <= 1000)) {
+            if (analogRead(SensC) > SenCRef) {
+              FoundCent = 1;
+              vecCurveV = 270;
+              break;
+            }
             getIMU();
             if (analogRead(SensL) > SenLRef) vecCurveV = 45;
             else if (analogRead(SensR) > SenRRef) vecCurveV = 135;
@@ -444,6 +529,27 @@ void TouchLine() {
               break;
             }
           }
+          while (FoundCent == 1 && (millis() - loopTimer <= 1000) && FoundLeft == 0 && FoundRight == 0) {
+            getIMU();
+            if (analogRead(SensL) > SenLRef) vecCurveV = 315;
+            else if (analogRead(SensR) > SenRRef) vecCurveV = 225;
+            // if (analogRead(SensL) > SenLRef) FoundCent == 1;
+
+
+            if ((analogRead(SensC) > SenCRef || FoundCent == 1)) {
+              // break;
+              FoundCent = 1;
+              vecCurveV = 90;
+            }
+
+            heading(80, vecCurveV, 0);
+
+            if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+              break;
+            }
+          }
+          FoundCent = 0;
+
           // holonomic(60, 90, 0);
           // delay(1000);
         }
@@ -459,7 +565,7 @@ void TouchLine() {
         //     getIMU();
         //     if (analogRead(SensL) > SenLRef) vecCurveV = 315;
         //     else if (analogRead(SensR) > SenRRef) vecCurveV = 225;
-            
+
         //     heading(80, vecCurveV, 0);
         //     if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
         //       break;
@@ -468,7 +574,7 @@ void TouchLine() {
         //   // holonomic(60, 90, 0);
         //   // delay(1000);
         // }
-         else if (analogRead(SensC) > SenCRef || (FoundRight == 0 && FoundLeft == 0 && FoundCent == 1)) {
+        else if (analogRead(SensC) > SenCRef || (FoundRight == 0 && FoundLeft == 0 && FoundCent == 1)) {
           // holonomic(0, 0, 0);
           // delay(50);
           FoundLeft = 0;
@@ -514,8 +620,7 @@ void TouchLine() {
             }
           }
           // delay(500);
-        }
-        else if (analogRead(SensR) < SenRRef && analogRead(SensL) < SenLRef && analogRead(SensC) < SenCRef) {
+        } else if (analogRead(SensR) < SenRRef && analogRead(SensL) < SenLRef && analogRead(SensC) < SenCRef) {
           FoundLeft = 0;
           FoundRight = 0;
           FoundCent = 0;
@@ -533,3 +638,266 @@ void TouchLine() {
     }
   }
 }
+
+// void TouchLine() {                   BUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+//   while (1) {
+//     reload();
+//     int FoundLeft = 0, FoundRight = 0, FoundCent = 0;
+//     if (huskylens.updateBlocks() && huskylens.blockSize[1]) {  // ball found
+//       // lastYaw = pvYaw;
+//       /*if (analogRead(SensC) > SenCRef) {
+//         holonomic(0, 0, 0);
+//         delay(100);
+//         holonomic(50, 270, 0);
+//         delay(100);
+//         holonomic(80, 270, 0);
+//         delay(200);
+//       } else */
+//       if (analogRead(SensL) > SenLRef) {
+//         holonomic(0, 20, 0);
+//         delay(100);
+//         holonomic(50, 20, 0);
+//         delay(100);
+//         holonomic(80, 20, 0);
+//         delay(100);
+//       } else if (analogRead(SensR) > SenRRef) {
+//         holonomic(0, 160, 0);
+//         delay(100);
+//         holonomic(50, 160, 0);
+//         delay(100);
+//         holonomic(80, 160, 0);
+//         delay(100);
+//       } else {
+//         AtanTrack2();
+//       }
+//     } else {
+//       // getIMU();
+//       // wheel(0, 0, 0);
+//       // getIMU();
+//       // while (analogRead(SensL) < SenLRef && analogRead(SensR) < SenRRef) {
+//       //   getIMU();
+//       //   holonomic(80, 270, 0);
+//       //   SetYaw();
+//       //   if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+//       //     break;
+//       //   }
+//       //   getIMU();
+//       // }
+//       int nubL, nubR, vecCurveV, countTo0_180;
+//       loopTimer = millis();
+//       // while (millis() - loopTimer <= 3000) {
+//       while (!(huskylens.updateBlocks() && huskylens.blockSize[1])) {
+//         reload();
+//         if (analogRead(SensR) > SenRRef) {
+//           FoundRight = 1;
+//         }
+//         if (analogRead(SensL) > SenLRef) {
+//           FoundLeft = 1;
+//         }
+//         if (analogRead(SensC) > SenCRef) {
+//           FoundCent = 1;
+//         }
+//         // FoundLeft = (analogRead(SensL) > SenLRef) ? 1 : 0;
+//         // FoundRight = (analogRead(SensR) > SenRRef) ? 1 : 0;
+//         if (FoundRight == 1 && FoundLeft == 1) {
+//           // holonomic(0, 0, 0);
+//           // delay(50);
+//           FoundLeft = 0;
+//           FoundRight = 0;
+//           if (countTo0_180 == 2) {
+//             countTo0_180++;
+//             loopTimer = millis();
+//             // delay(500);
+//             while (millis() - loopTimer <= 500) {
+//               holonomic(80, 90, 0);
+//               if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+//                 countTo0_180 = 0;
+//                 break;
+//               }
+//               // if (analogRead(SensC) > SenCRef) {
+//               //   FoundCent = 1;
+//               //   vecCurveV = 270;
+//               //   break;
+//               // }
+//             }
+//             // while (FoundCent == 1 && millis() - loopTimer <= 500){
+//             //   holonomic(80, 270, 0);
+//             // }
+//             if (lastGoalPos() == 1) vecCurveV = 0;
+//             else vecCurveV = 180;
+//             loopTimer = millis();
+//             while (FoundCent == 0 && (millis() - loopTimer <= 3000)) {
+//               if (analogRead(SensC) > SenCRef) {
+//                 FoundCent = 1;
+//                 vecCurveV = 270;
+//                 break;
+//               }
+//               getIMU();
+//               if (analogRead(SensL) > SenLRef) vecCurveV = 0;
+//               else if (analogRead(SensR) > SenRRef) vecCurveV = 180;
+//               // if (analogRead(SensL) > SenLRef) FoundCent == 1;
+
+//               heading(80, vecCurveV, 0);
+//               if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+//                 countTo0_180 = 0;
+//                 break;
+//               }
+//             }
+//             if (countTo0_180 == 10) /*|| FoundCent == 1*/ {
+//               countTo0_180 = 0;
+//               // break;
+//             }
+//             FoundCent = 0;
+//             // countTo0_180 = 0;
+//           } else {
+//             loopTimer = millis();
+//             vecCurveV = 90;
+//             // delay(500);
+//             while (millis() - loopTimer <= 350) {
+//               holonomic(80, 90, 0);
+//               if (analogRead(SensC) > SenCRef) {
+//                 FoundCent = 1;
+//                 vecCurveV = 270;
+//                 break;
+//               }
+//               if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+//                 countTo0_180 = 0;
+//                 break;
+//               }
+//             }
+//             vecCurveV = 270;
+//             while (FoundCent == 1 && millis() - loopTimer <= 350){
+//               holonomic(80, vecCurveV, 0);
+
+//               if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+//                 countTo0_180 = 0;
+//                 break;
+//               }
+//               if(analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef){
+//                 vecCurveV = 90;
+//               }
+//               if(vecCurveV == 90 && analogRead(SensC) > SenCRef){
+//                 loopTimer = millis();
+//                 vecCurveV = 270;
+//               }
+//             }
+//             loopTimer = millis();
+//             while (FoundCent == 0 && (millis() - loopTimer <= 1000)) {
+//               if (analogRead(SensC) > SenCRef) {
+//                 FoundCent = 1;
+//                 vecCurveV = 270;
+//                 break;
+//               }
+//               getIMU();
+//               if (analogRead(SensL) > SenLRef) vecCurveV = 45;
+//               else if (analogRead(SensR) > SenRRef) vecCurveV = 135;
+//               // if (analogRead(SensL) > SenLRef) FoundCent == 1;
+
+//               heading(80, vecCurveV, 0);
+//               if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+//                 break;
+//               }
+//             }
+//             countTo0_180++;
+//             while (FoundCent == 1 && (millis() - loopTimer <= 500)) {
+//               countTo0_180 = 0;
+//               getIMU();
+//               if (analogRead(SensL) > SenLRef) vecCurveV = 315;
+//               else if (analogRead(SensR) > SenRRef) vecCurveV = 225;
+//               // if (analogRead(SensL) > SenLRef) FoundCent == 1;
+
+//               heading(80, vecCurveV, 0);
+//               if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
+//                 break;
+//               }
+//             }
+//             FoundCent = 0;
+//           }
+//           // holonomic(60, 90, 0);
+//           // delay(1000);
+//         }
+//         // else if (FoundCent == 1 && FoundRight == 1 && FoundLeft == 1) {
+//         //   // holonomic(0, 0, 0);
+//         //   // delay(50);
+//         //   FoundCent = 0;
+//         //   FoundLeft = 0;
+//         //   FoundRight = 0;
+//         //   loopTimer = millis();
+//         //   vecCurveV = 270;
+//         //   while (millis() - loopTimer <= 1000) {
+//         //     getIMU();
+//         //     if (analogRead(SensL) > SenLRef) vecCurveV = 315;
+//         //     else if (analogRead(SensR) > SenRRef) vecCurveV = 225;
+
+//         //     heading(80, vecCurveV, 0);
+//         //     if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+//         //       break;
+//         //     }
+//         //   }
+//         //   // holonomic(60, 90, 0);
+//         //   // delay(1000);
+//         // }
+//         else if (analogRead(SensC) > SenCRef || (FoundRight == 0 && FoundLeft == 0 && FoundCent == 1)) {
+//           // holonomic(0, 0, 0);
+//           // delay(50);
+//           FoundLeft = 0;
+//           FoundRight = 0;
+//           FoundCent = 0;
+//           getIMU();
+//           heading(80, 270, 0);
+//           // delay(500
+//         } else if (FoundLeft == 0 && analogRead(SensR) > SenRRef) {
+//           // holonomic(0, 0, 0);
+//           // delay(50);
+//           FoundRight = 1;
+//           // heading(80, 240, 0);
+//           holonomic(80, 240, 0);
+//           nubR = millis();
+//           while (millis() - nubR <= 80) {
+//             if (analogRead(SensL) > SenLRef) {
+//               heading(0, 0, 0);
+//               FoundLeft = 1;
+//               // beep();
+//             }
+//             if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+//               break;
+//             }
+//           }
+//           // delay(500);
+//         } else if (FoundRight == 0 && analogRead(SensL) > SenLRef) {
+//           // holonomic(0, 0, 0);
+//           // delay(50);
+//           FoundLeft = 1;
+//           // getIMU();
+//           // heading(80, 300, 0);
+//           holonomic(80, 300, 0);
+//           nubL = millis();
+//           while (millis() - nubL <= 80) {
+//             if (analogRead(SensR) > SenRRef) {
+//               heading(0, 0, 0);
+//               FoundRight = 1;
+//               // beep();
+//             }
+//             if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+//               break;
+//             }
+//           }
+//           // delay(500);
+//         } else if (analogRead(SensR) < SenRRef && analogRead(SensL) < SenLRef && analogRead(SensC) < SenCRef) {
+//           FoundLeft = 0;
+//           FoundRight = 0;
+//           FoundCent = 0;
+//           getIMU();
+//           heading(80, 270, 0);
+//         }
+//         if (abs(pvYaw) > 10) {
+//           SetYaw();
+//         }
+//         if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+//           break;
+//         }
+//         getIMU();
+//       }
+//     }
+//   }
+// }

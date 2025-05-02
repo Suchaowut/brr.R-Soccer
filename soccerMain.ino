@@ -65,7 +65,7 @@ float RotYel_Error, RotYel_PvEror, RotYel_D, RotYel_w;
 float RotBlu_Error, RotBlu_PvEror, RotBlu_D, RotBlu_w;
 
 #define limPin A0
-#define reloadSpd 60
+#define reloadSpd 65
 
 float thetaRad, vx, vy, spd1, spd2, spd3;
 void wheel(int s1, int s2, int s3) {
@@ -122,12 +122,12 @@ void Auto_zero() {
   int timer = millis();
   oled.clear();
   oled.text(1, 2, "Setting zero");
-  while (abs(pvYaw) > 0.02) {
+  while (abs(pvYaw) > 1) {
     if (getIMU()) {
       oled.text(3, 6, "Yaw: %f ", pvYaw);
       oled.show();
-      //beep();
-      if (millis() - timer > 2000) {
+      // beep();
+      if (millis() - timer > 1000) {
         zeroYaw();
         timer = millis();
       }
@@ -144,28 +144,31 @@ void updateIMU() {
 }
 // Shooting
 void shoot() {
-  sound(1000, 200);
-  // motor(4, reloadSpd);
-  // delay(150);
-  // motor(4, 0);
-  // delay(50);
+  // sound(1000, 20 0);
+  motor(4, reloadSpd);
+  delay(150);
+  motor(4, 0);
+  delay(50);
 }
 void reload() {
+  Serial.print("First");
+  Serial.println(analog(limPin));
   motor(4, reloadSpd);
   int timer = 0;
-  for (int i = 0; i < 2000; i++) {
+  for (int i = 0; i < 1000; i++) {
+    Serial.println(analog(limPin));
     timer++;
-    if (analog(limPin) > 1000) break;
+    if (analog(limPin) > 780) break;
     delay(1);
   }
-  if (timer == 2000) {     // ถ้าก้านยิงติด
+  if (timer == 1000) {     // ถ้าก้านยิงติด
     motor(4, -reloadSpd);  // เลื่อนก้านยิงไปข้างหน้า
     delay(500);            //ก่อน 0.5 วินาที
     motor(4, reloadSpd);
     timer = 0;
-    for (int i = 0; i < 2000; i++) {
+    for (int i = 0; i < 1000; i++) {
       timer++;
-      if (analog(limPin) > 1000) break;
+      if (analog(limPin) > 780) break;
       delay(1);
     }
   }
@@ -333,7 +336,8 @@ bool firstRun = true;  // ตัวแปรตรวจสอบว่ารอ
 int run_count = 0;
 
 void menu() {
-  int x = 1, lastX = 1;;
+  int x = 1, lastX = 1;
+  ;
   long startTime;
   if (firstRun == false) startTime = millis();
 
@@ -378,7 +382,7 @@ void menu() {
 
     oled.show();
   }
-  
+
   oled.text(2, 0, "                   ");
   oled.text(3, 0, "                   ");
   firstRun = false;  // หลังจากรอบแรก จะไม่ต้องรอกดปุ่ม OK อีก
@@ -398,27 +402,59 @@ void setup() {
   }
   delay(1000);
   zeroYaw();
-  // Auto_zero();
+  Auto_zero();
   // while(1){
-  //   updateIMU();
+  // updateIMU();
   //   oled.text(3, 6, "Yaw: %f ", pvYaw);
   //   oled.show();
   // }
   // waitAnykey();
-  menu();
+  // menu();
 }
 void loop() {
-  menu();
   // getIMU();
-  // Serial.println(pvYaw);
-  // heading(0, 0, 180);
-  // readyShoot();
-  // if ((huskylens.updateBlocks() && huskylens.blockSize[1])) {
-  //   // lastGoalCoord = lastGoalPos();
-    
-  //   // if (ballPosY <= 60 && abs(ballPosX - goalEstX) < 15) {
-  //   //   holonomic(0, 0, 0);
-  //   //   beep();
-  //   // } else holonomic(0, 0, 0);
+  // heading(0, 0, 0);
+  // oled.text(3, 6, "Yaw: %f ", pvYaw);
+  // oled.show();
+  // holonomic(80, 0, 15);
+  // Serial.println(analog(limPin));
+  menu();
+  // if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+  //   Xaxis_Error = huskylens.blockInfo[1][0].x - 170;
+  //   Xaxis_D = Xaxis_Error - Xaxis_PvEror;
+  //   Xaxis_spd = (Xaxis_Error * Xaxis_Kp) + (Xaxis_D * Xaxis_Kd);
+  //   if (abs(Xaxis_spd) < 15 && abs(Xaxis_Error) >= 3) {
+  //     Xaxis_spd = (Xaxis_spd > 0) ? 15 : -15;
+  //   } else Xaxis_spd = constrain(Xaxis_spd, -80, 80);
+  //   Xaxis_PvEror = Xaxis_Error;
+  //   getIMU();
+  //   heading(Xaxis_spd, 0, 0);
   // }
+  // Serial.println(Xaxis_spd);
+  // if(abs(Xaxis_Error) <= 10) {
+  //   holonomic(0,0,0);
+  //   beep();
+  // }
+  // huskylens.updateBlocks();
+  // int goalEstWidth = 0, goalEstX, goalEstY;
+
+  // // ตรวจสอบโกลซ้ายหรือขวา
+  // if (huskylens.blockSize[2]) {
+  //   goalEstX = huskylens.blockInfo[2][0].x;
+  //   goalEstY = huskylens.blockInfo[2][0].y;
+  //   goalEstWidth = huskylens.blockInfo[2][0].width;
+  // } else if (huskylens.blockSize[3]) {
+  //   goalEstX = huskylens.blockInfo[3][0].x;
+  //   goalEstY = huskylens.blockInfo[3][0].y;
+  //   goalEstWidth = huskylens.blockInfo[3][0].width;
+  // }
+  // int ballPosX = huskylens.blockInfo[1][0].x;
+
+  // bool ballInGoalArea = false;
+  // if (goalEstWidth > 0) {
+  //   float goalLeft = goalEstX - goalEstWidth / 2.0;
+  //   float goalRight = goalEstX + goalEstWidth / 2.0;
+  //   ballInGoalArea = (ballPosX >= goalLeft && ballPosX <= goalRight);
+  // }
+  // Serial.println(ballInGoalArea);
 }
