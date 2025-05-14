@@ -206,7 +206,7 @@ void TrackXaxis2() {
     Xaxis_D = Xaxis_Error - Xaxis_PvEror;
     Xaxis_spd = (Xaxis_Error * Xaxis_Kp) + (Xaxis_D * Xaxis_Kd);
     if (abs(Xaxis_spd) < 15 && abs(Xaxis_Error) >= 3) {
-      Xaxis_spd = (Xaxis_spd > 0) ? 15 : -15;
+      Xaxis_spd = (Xaxis_spd > 0) ? 30 : -30;
     } else Xaxis_spd = constrain(Xaxis_spd, -80, 80);
     Xaxis_PvEror = Xaxis_Error;
     getIMU();
@@ -304,8 +304,11 @@ void AtanTrack2() {
 float angleToGoal = 90;
 float previousAngle = 90;
 int lastSeenGoal = 1;  // front
+int count, bypass;     // sensor
 
 void Dribbling() {
+  bypass = 0;
+  count = 0;
   float goalEstX = 160, goalEstY = 120, goalEstWidth = 50;
 
   while (huskylens.updateBlocks() && huskylens.blockSize[1]) {
@@ -350,7 +353,7 @@ void Dribbling() {
 
     angleToGoal = previousAngle * 0.7 + targetAngle * 0.3;
     previousAngle = angleToGoal;
-    lastangleToGoal = angleToGoal;
+    int lastangleToGoal = angleToGoal;
 
 
     if (ballPosY < 225) {
@@ -375,28 +378,17 @@ void Dribbling() {
 
     // หากโกลอยู่ที่ขอบซ้ายหรือขวา หนุนให้หมุนแรงขึ้น
     if (goalEstX < 110 || goalEstX > 210) {
-      rott = constrain(error * 2, -30, 30);  // หมุนเร็วขึ้นเมื่อโกลอยู่ขอบ
-    } else if (goalLeft <= 170 && 170 <= goalRight) {
+      rott = constrain(error * 2, -20, 20);  // หมุนเร็วขึ้นเมื่อโกลอยู่ขอบ
+    } else if (goalLeft <= 160 || 180 <= goalRight) {
       // ศูนย์กลางภาพ (170) อยู่ในเขตโกล — หมุนช้าลง
-      rott = constrain(error, -10, 10);
+      rott = constrain(error, -6, 6);
     }
-    float dxBall = ballPosX - 170;
-    float dyBall = 200 - ballPosY;
-
-    float rawAngle = atan2(dyBall, dxBall) * 180.0 / PI;
-
-    float angleToBall = 90 - rawAngle;  // เปลี่ยนให้ 90 เป็นด้านหน้า
-
-    if (angleToBall < 0) angleToBall += 360;
-    if (angleToBall > 180) angleToBall = 180 - (angleToBall - 180);  // กลับซ้ายขวาให้ได้ช่วง 0–180
-
     // float oppositeAngle = 180 - angleToGoal;
 
     // int speed = map(ballPosY, 20, 225, 40, 100);
     // speed = constrain(speed, 40, 100);
     // if (abs(170 - ballPosX) < 15 && ballPosY > 225 && abs(goalEstX - 170) > 0) holonomic(100, angleToGoal, rott);
     if (abs(170 - ballPosX) < 10 && ballPosY > 215 && abs(goalEstX - 170) > 10 && !ballInGoalArea) holonomic(100, 180 - angleToGoal, rott);
-    else if (ballPosX <= 150 || ballPosX >= 200) holonomic(100, angleToBall, 0);
     else if ((ballPosX > 150 && ballPosX < 200) && ballInGoalArea) holonomic(100, angleToGoal, 0);
     else if ((ballPosX > 150 && ballPosX < 200) && !ballInGoalArea) heading(100, angleToGoal, 0);
     // else holonomic(100, angleToGoal, 0);
@@ -417,12 +409,17 @@ void Dribbling() {
   }
 }
 
+
 void TouchLine() {
   while (1) {
-    reload();
+    if (analogRead(limPin) < 700) reload();
     int FoundLeft = 0, FoundRight = 0, FoundCent = 0;
     if (huskylens.updateBlocks() && huskylens.blockSize[1]) {  // ball found
       // lastYaw = pvYaw;
+
+
+      if (count >= 3) bypass = 1;                           
+
       /*if (analogRead(SensC) > SenCRef) {
         holonomic(0, 0, 0);
         delay(100);
@@ -430,15 +427,18 @@ void TouchLine() {
         delay(100);
         holonomic(80, 270, 0);
         delay(200);
-      } else */
-      if (analogRead(SensL) > SenLRef) {
+        
+      } else*/
+      if (analogRead(SensL) > SenLRef && bypass == 0) {
+        count++;
         holonomic(0, 20, 0);
         delay(100);
         holonomic(50, 20, 0);
         delay(100);
         holonomic(80, 20, 0);
         delay(100);
-      } else if (analogRead(SensR) > SenRRef) {
+      } else if (analogRead(SensR) > SenRRef && bypass == 0) {
+        count++;
         holonomic(0, 160, 0);
         delay(100);
         holonomic(50, 160, 0);
@@ -449,6 +449,8 @@ void TouchLine() {
         AtanTrack2();
       }
     } else {
+      bypass = 0;
+      count = 0;
       // getIMU();
       // wheel(0, 0, 0);
       // getIMU();
@@ -483,42 +485,21 @@ void TouchLine() {
           FoundLeft = 0;
           FoundRight = 0;
           loopTimer = millis();
-          vecCurveV = 90;
-          // delay(500);
-          while (millis() - loopTimer <= 500) {
-            holonomic(80, vecCurveV, 0);
+          while (millis() - loopTimer <= 800) {
+            // vecCurveV = (huskylens.updateBlocks() && (huskylens.blockSize[2] || huskylens.blockSize[3])) ? 270 : 90;
+            holonomic(80, 90, 0);
             if (analogRead(SensC) > SenCRef) {
               FoundCent = 1;
-              vecCurveV = 270;
+              // vecCurveV = 270;
               break;
-            }
-            if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
-              break;
-            }
-          }
-          // vecCurveV = 270;
-          while (FoundCent == 1 && millis() - loopTimer <= 500) {
-            holonomic(80, vecCurveV, 0);
-            if (analogRead(SensR) > SenRRef) {
-              FoundRight = 1;
-            }
-            if (analogRead(SensL) > SenLRef) {
-              FoundLeft = 1;
-            }
-            if (FoundLeft == 1 && FoundRight == 1) {
-              vecCurveV = 90;
             }
             if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
               break;
             }
           }
           loopTimer = millis();
-          while (FoundCent == 0 && (millis() - loopTimer <= 1000)) {
-            if (analogRead(SensC) > SenCRef) {
-              FoundCent = 1;
-              vecCurveV = 270;
-              break;
-            }
+          vecCurveV = 90;
+          while (millis() - loopTimer <= 1500) {
             getIMU();
             if (analogRead(SensL) > SenLRef) vecCurveV = 45;
             else if (analogRead(SensR) > SenRRef) vecCurveV = 135;
@@ -529,29 +510,6 @@ void TouchLine() {
               break;
             }
           }
-          while (FoundCent == 1 && (millis() - loopTimer <= 1000) && FoundLeft == 0 && FoundRight == 0) {
-            getIMU();
-            if (analogRead(SensL) > SenLRef) vecCurveV = 315;
-            else if (analogRead(SensR) > SenRRef) vecCurveV = 225;
-            // if (analogRead(SensL) > SenLRef) FoundCent == 1;
-
-
-            if ((analogRead(SensC) > SenCRef || FoundCent == 1)) {
-              // break;
-              FoundCent = 1;
-              vecCurveV = 90;
-            }
-
-            heading(80, vecCurveV, 0);
-
-            if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
-              break;
-            }
-          }
-          FoundCent = 0;
-
-          // holonomic(60, 90, 0);
-          // delay(1000);
         }
         // else if (FoundCent == 1 && FoundRight == 1 && FoundLeft == 1) {
         //   // holonomic(0, 0, 0);
