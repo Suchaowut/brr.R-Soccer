@@ -8,16 +8,16 @@ POP32_Huskylens huskylens;
 #define SensC A1
 #define SensL A2
 #define SensR A3
-#define SenCRef 1680
-#define SenLRef 1640
-#define SenRRef 1945
+#define SenCRef (2900+320)/2
+#define SenLRef (3900+450)/2
+#define SenRRef (2700+400)/2
 
 unsigned long lastSeenBallTime = 0;
 bool returningToGoal = false;
 
 // main move atan //*/
-#define Xaxis_Kp 1.2
-#define Xaxis_Kd 0.7
+#define Xaxis_Kp 1.125
+#define Xaxis_Kd 0.9
 
 #define Yaxis_Kp 1.5
 #define Yaxis_Kd 0.25
@@ -151,14 +151,14 @@ void shoot() {
   delay(50);
 }
 void reload() {
-  Serial.print("First");
-  Serial.println(analog(limPin));
+  // Serial.print("First");
+  // Serial.println(analog(limPin));
   motor(4, reloadSpd);
   int timer = 0;
   for (int i = 0; i < 1000; i++) {
-    Serial.println(analog(limPin));
+    // Serial.println(analog(limPin));
     timer++;
-    if (analog(limPin) > 780) break;
+    if (analog(limPin) > 700) break;
     delay(1);
   }
   if (timer == 1000) {     // ถ้าก้านยิงติด
@@ -168,7 +168,7 @@ void reload() {
     timer = 0;
     for (int i = 0; i < 1000; i++) {
       timer++;
-      if (analog(limPin) > 780) break;
+      if (analog(limPin) > 700) break;
       delay(1);
     }
   }
