@@ -199,16 +199,29 @@
 //     }
 //   }
 // }
+int lastError = 0;
+long errorStarttime = 0;
 
 void TrackXaxis2() {
   if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
     Xaxis_Error = huskylens.blockInfo[1][0].x - 170;
     Xaxis_D = Xaxis_Error - Xaxis_PvEror;
+    if (abs(Xaxis_Error - lastError) < 3) {
+      if (errorStarttime == 0) errorStarttime = millis();
+      else errorStarttime = 0;
+    }
     Xaxis_spd = (Xaxis_Error * Xaxis_Kp) + (Xaxis_D * Xaxis_Kd);
-    if (abs(Xaxis_spd) < 15 && abs(Xaxis_Error) >= 3) {
+    if (abs(Xaxis_spd) < 15 && abs(Xaxis_Error) >= 2) {
       Xaxis_spd = (Xaxis_spd > 0) ? 30 : -30;
-    } else Xaxis_spd = constrain(Xaxis_spd, -80, 80);
+    } else {
+      if (errorStarttime > 0 && millis() - errorStarttime > 1000) {
+        Xaxis_spd *= 2.5;
+        if(Xaxis_spd <= 10) Xaxis_spd = 20;
+      }
+      Xaxis_spd = constrain(Xaxis_spd, -80, 80);
+    }
     Xaxis_PvEror = Xaxis_Error;
+    lastError = Xaxis_Error;
     getIMU();
     heading(Xaxis_spd, 0, 0);
   }
@@ -229,7 +242,7 @@ void AtanTrack2() {
     lastGoalCoord = lastGoalPos();
     ballPosX = huskylens.blockInfo[1][0].x;
     ballPosY = huskylens.blockInfo[1][0].y;
-    float QuaDrantX = huskylens.blockInfo[1][0].x - 160;
+    float QuaDrantX = huskylens.blockInfo[1][0].x - 150;
     float QuaDrantY = 180 - huskylens.blockInfo[1][0].y;
     float TanTheta = QuaDrantY / QuaDrantX;
     float Setha = atan(TanTheta) * (180 / PI);
@@ -304,14 +317,25 @@ void AtanTrack2() {
 float angleToGoal = 90;
 float previousAngle = 90;
 int lastSeenGoal = 1;  // front
-int count, bypass;     // sensor
+// int count, bypassLR, bypassC, CountC;     // sensor
 
 void Dribbling() {
-  bypass = 0;
+  bypassLR = 0;
   count = 0;
+  bypassC = 0;
+  countC = 0;
   float goalEstX = 160, goalEstY = 120, goalEstWidth = 50;
 
   while (huskylens.updateBlocks() && huskylens.blockSize[1]) {
+    if (analogRead(SensC) > SenCRef && (huskylens.updateBlocks() && !(huskylens.blockSize[2] || huskylens.blockSize[3]))) {
+      holonomic(0, 0, 0);
+      delay(100);
+      holonomic(50, 270, 0);
+      delay(100);
+      holonomic(80, 270, 0);
+      delay(200);
+      break;
+    }
     getIMU();
     ballPosX = huskylens.blockInfo[1][0].x;
     ballPosY = huskylens.blockInfo[1][0].y;
@@ -330,8 +354,8 @@ void Dribbling() {
       continue;
     }
 
-    if (goalEstX - 170 < 0) lastSeenGoal = 1;
-    else if (goalEstX - 170 > 0) lastSeenGoal = 2;
+    if (goalEstX - 150 < 0) lastSeenGoal = 1;
+    else if (goalEstX - 150 > 0) lastSeenGoal = 2;
     else lastSeenGoal = 0;
 
     float goalLeft = goalEstX - goalEstWidth / 2.0;
@@ -378,10 +402,10 @@ void Dribbling() {
 
     // หากโกลอยู่ที่ขอบซ้ายหรือขวา หนุนให้หมุนแรงขึ้น
     if (goalEstX < 110 || goalEstX > 210) {
-      rott = constrain(error * 2, -20, 20);  // หมุนเร็วขึ้นเมื่อโกลอยู่ขอบ
+      rott = constrain(error * 2, -30, 30);  // หมุนเร็วขึ้นเมื่อโกลอยู่ขอบ
     } else if (goalLeft <= 160 || 180 <= goalRight) {
       // ศูนย์กลางภาพ (170) อยู่ในเขตโกล — หมุนช้าลง
-      rott = constrain(error, -6, 6);
+      rott = constrain(error, -10, 10);
     }
     // float oppositeAngle = 180 - angleToGoal;
 
@@ -394,7 +418,8 @@ void Dribbling() {
     // else holonomic(100, angleToGoal, 0);
     // if(ballPosY < 210) heading(100, angleToGoal, 0);
 
-    if (goalEstY > 30 && ballPosY > 230 && ((analogRead(SensC) > SenCRef && ballInGoalArea) || (ballPosX >= goalLeft + 10 && ballPosX <= goalRight - 10))) {
+    // if (/*goalEstY > 30 && */ballPosY > 230 && ((analogRead(SensC) > SenCRef && ballInGoalArea) /*|| (ballPosX >= goalLeft + 10 && ballPosX <= goalRight - 10)*/)) {
+    if (ballPosY > 220 && (analogRead(SensC) > SenCRef && (ballPosX >= goalLeft + 10 && ballPosX <= goalRight - 10))) /*ballInGoalArea*/ {
       holonomic(0, 0, 0);
       shoot();
       delay(100);
@@ -404,6 +429,7 @@ void Dribbling() {
       reload();
       delay(100);
       holonomic(0, 0, 0);
+      break;
       // delay(1000);
     }
   }
@@ -418,7 +444,7 @@ void TouchLine() {
       // lastYaw = pvYaw;
 
 
-      if (count >= 3) bypass = 1;                           
+      if (count >= 3) bypassLR = 1;
 
       /*if (analogRead(SensC) > SenCRef) {
         holonomic(0, 0, 0);
@@ -429,7 +455,7 @@ void TouchLine() {
         delay(200);
         
       } else*/
-      if (analogRead(SensL) > SenLRef && bypass == 0) {
+      if (analogRead(SensL) > SenLRef && bypassLR == 0) {
         count++;
         holonomic(0, 20, 0);
         delay(100);
@@ -437,7 +463,7 @@ void TouchLine() {
         delay(100);
         holonomic(80, 20, 0);
         delay(100);
-      } else if (analogRead(SensR) > SenRRef && bypass == 0) {
+      } else if (analogRead(SensR) > SenRRef && bypassLR == 0) {
         count++;
         holonomic(0, 160, 0);
         delay(100);
@@ -449,7 +475,7 @@ void TouchLine() {
         AtanTrack2();
       }
     } else {
-      bypass = 0;
+      bypassLR = 0;
       count = 0;
       // getIMU();
       // wheel(0, 0, 0);
