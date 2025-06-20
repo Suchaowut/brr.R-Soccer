@@ -8,15 +8,22 @@ POP32_Huskylens huskylens;
 #define SensC A1
 #define SensL A2
 #define SensR A3
-#define SenCRef (2900 + 320) / 2
-#define SenLRef (3900 + 450) / 2
-#define SenRRef (2700 + 400) / 2
+
+// #define SenCRef (3000 + 450) / 2
+// #define SenLRef (3880 + 500) / 2
+// #define SenRRef (2550 + 380) / 2
+
+// ค่าสนามแข่ง 2
+#define SenCRef (290 + 2900) / 2
+#define SenLRef (3130 + 370) / 2
+#define SenRRef (310 + 3150) / 2
 
 unsigned long lastSeenBallTime = 0;
 bool returningToGoal = false;
 
 // main move atan //*/
 #define Xaxis_Kp 1.125
+#define Xaxis_Ki 0.001
 #define Xaxis_Kd 0.9
 
 #define Yaxis_Kp 1.5
@@ -43,10 +50,10 @@ float realYaw;
 float head_error, head_pError, head_w, head_d, head_i;
 unsigned long loopTimer;
 
-#define rot_Kp 2.0
-#define rot_Ki 0.0
-#define rot_Kd 0.5
-#define sp_rot 160      // ค่า setpoint ที่ลูกบอลอยู่ตรงกลางกล้องแกน x  320/2 = 160
+#define rot_Kp 4.0
+#define rot_Ki 0.05
+#define rot_Kd 0.8
+#define sp_rot 170      // ค่า setpoint ที่ลูกบอลอยู่ตรงกลางกล้องแกน x  320/2 = 160
 #define rotErrorGap 10  // ค่า Error ที่ยอมให้หุ่นหยุดทำงาน
 #define idleSpd 45      // ค่าความเร็วการหมุนเมื่อไม่เจอลูกบอล
 float rot_error, rot_pError, rot_i, rot_d, rot_w;
@@ -59,7 +66,7 @@ int ballPosX;
 float fli_error, fli_pError, fli_i, fli_d, fli_spd;
 int ballPosY;
 
-float Xaxis_Error, Xaxis_PvEror, Xaxis_D, Xaxis_spd;
+float Xaxis_Error, Xaxis_PvEror, Xaxis_I, Xaxis_D, Xaxis_spd;
 float Yaxis_Error, Yaxis_PvEror, Yaxis_D, Yaxis_spd;
 float RotYel_Error, RotYel_PvEror, RotYel_D, RotYel_w;
 float RotBlu_Error, RotBlu_PvEror, RotBlu_D, RotBlu_w;
@@ -122,7 +129,7 @@ void Auto_zero() {
   int timer = millis();
   oled.clear();
   oled.text(1, 2, "Setting zero");
-  while (abs(pvYaw) > 1) {
+  while (abs(pvYaw) > 0.7) {
     if (getIMU()) {
       oled.text(3, 6, "Yaw: %f ", pvYaw);
       oled.show();
@@ -323,8 +330,14 @@ struct MenuItem {
 };
 
 MenuItem menuItems[] = {
-  { "TouchLine", TouchLine },
-  { "SmartATK", SmartATK },
+  // { "TouchLine", TouchLine },
+  { "DefTouchLine", TouchLineDef },
+  // { "5-Lay-Line", delay5TouchLine },
+  { "TurnDefBigbump", TurnFindBigbumpDef },
+  { "Lay5Bigbump", delay5Bigbump },
+  { "DefBigbump", BigbumpDef },
+  { "Penalty_Shoot", Penalty_Shoot },
+  { "Penalty_Save", Penalty_Save },
   { "Shoot&load", ShootAndReload },
   { "CoordsBall", CoordsBall },
   { "check Sens", chksens }
@@ -409,7 +422,7 @@ void setup() {
   //   oled.text(3, 6, "Yaw: %f ", pvYaw);
   //   oled.show();
   // }
-  waitAnykey();
+  // waitAnykey();
   // menu();
 }
 void loop() {
@@ -419,7 +432,7 @@ void loop() {
   // oled.show();
   // holonomic(80, 0, 15);
   // Serial.println(analog(limPin));
-  // menu();
+  menu();
   // if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
   //   Xaxis_Error = huskylens.blockInfo[1][0].x - 170;
   //   Xaxis_D = Xaxis_Error - Xaxis_PvEror;
@@ -459,303 +472,4 @@ void loop() {
   // }
   // Serial.println(ballInGoalArea);
   // int count, bypassLR = 0, bypassC = 0, countC;
-  if (huskylens.updateBlocks() && huskylens.blockSize[1]) {  // ball found
-    // lastYaw = pvYaw;
-
-
-    if (count >= 2) bypassLR = 1;
-    if (countC >= 3) bypassC = 1;
-
-    if (analogRead(SensC) > SenCRef && (huskylens.updateBlocks() && !(huskylens.blockSize[2] || huskylens.blockSize[3])) && bypassC == 0) {
-      holonomic(0, 0, 0);
-      delay(100);
-      holonomic(50, 270, 0);
-      delay(100);
-      holonomic(80, 270, 0);
-      delay(200);
-      countC++;
-
-    } else if (analogRead(SensL) > SenLRef && bypassLR == 0) {
-      count++;
-      holonomic(0, 20, 0);
-      delay(100);
-      holonomic(50, 20, 0);
-      delay(100);
-      holonomic(80, 20, 0);
-      delay(100);
-    } else if (analogRead(SensR) > SenRRef && bypassLR == 0) {
-      count++;
-      holonomic(0, 160, 0);
-      delay(100);
-      holonomic(50, 160, 0);
-      delay(100);
-      holonomic(80, 160, 0);
-      delay(100);
-    } else {
-      AtanTrack2();
-    }
-  } else {
-    bypassLR = 0;
-    count = 0;
-    bypassC = 0;
-    countC = 0;
-
-
-    // state 0 main   state 1
-    int nubL, nubR, vecCurveV;
-    int FoundLeft = 0, FoundRight = 0, FoundCent = 0;
-    int state = 0;
-    while (!(huskylens.updateBlocks() && huskylens.blockSize[1])) {
-      reload();
-
-      if (analogRead(SensR) > SenRRef) {
-        FoundRight = 1;
-      }
-      if (analogRead(SensL) > SenLRef) {
-        FoundLeft = 1;
-      }
-      if (analogRead(SensC) > SenCRef) {
-        FoundCent = 1;
-      }
-      if (FoundRight == 1 && FoundLeft == 1) {
-
-        FoundLeft = 0;
-        FoundRight = 0;
-        if (count == 0) {
-          state = 3;
-          loopTimer = millis();
-          while (millis() - loopTimer <= 300) {
-            getIMU();
-            // if (analogRead(SensL) > SenLRef) FoundCent == 1;
-            heading(100, 90, 0);
-            if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
-              break;
-            }
-          }
-        } else state = 1;
-      } else if (analogRead(SensL) > SenLRef && analogRead(SensR) < SenRRef && FoundRight == 0) {
-        FoundLeft = 1;
-        holonomic(80, 300, 0);
-        nubL = millis();
-        while (millis() - nubL <= 100) {
-          if (analogRead(SensR) > SenRRef) {
-            heading(0, 0, 0);
-            FoundRight = 1;
-          }
-        }
-        // state = 1;
-        //break;
-      } else if (analogRead(SensL) < SenLRef && analogRead(SensR) > SenRRef && FoundLeft == 0) {
-        FoundRight = 1;
-        holonomic(80, 240, 0);
-        nubR = millis();
-        while (millis() - nubR <= 150) {
-          if (analogRead(SensL) > SenLRef) {
-            heading(0, 0, 0);
-            FoundLeft = 1;
-          }
-          if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-            break;
-          }
-        }
-        // state = 1;
-        //break;
-      } else if (analogRead(SensR) < SenRRef && analogRead(SensL) < SenLRef && analogRead(SensC) < SenCRef) {
-        FoundLeft = 0;
-        FoundRight = 0;
-        FoundCent = 0;
-        getIMU();
-        heading(80, 270, 0);
-      }
-      if (abs(pvYaw) > 10) {
-        SetYaw();
-      }
-      if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-        break;
-      }
-
-
-      if (state == 1) {
-        vecCurveV = 90;
-        getIMU();
-        heading(80, 240, 0);
-
-        if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-          break;
-        }
-        loopTimer = millis();
-        while (millis() - loopTimer <= 1100) {
-          getIMU();
-          if (analogRead(SensL) > SenLRef && (millis() - loopTimer >= 350)) vecCurveV = 25;
-          else if (analogRead(SensR) > SenRRef && (millis() - loopTimer >= 350)) vecCurveV = 155;
-          // if (analogRead(SensL) > SenLRef) FoundCent == 1;
-
-          heading(80, vecCurveV, 0);
-          if ((huskylens.updateBlocks() && huskylens.blockSize[1]) /*|| FoundCent == 1*/) {
-            break;
-          }
-        }
-        if (vecCurveV == 90) count++;
-        else count = 0;
-        state = 0;
-      } else if (state == 2) {
-        int Yor = 0;
-        int targetyor = 60;
-        count = 0;
-        // beep();
-        holonomic(0, 0, 0);
-        // if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef) {
-        //   holonomic(0, 0, 0);
-        //   state = 0;
-        //   break;
-        // }
-
-        loopTimer = millis();
-        while (millis() - loopTimer <= 2000) {
-          getIMU();
-          if (!(huskylens.updateBlocks() && huskylens.blockSize[1])) {
-            for (Yor = pvYaw; pvYaw <= targetyor; Yor++) {
-              if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-                holonomic(0, 0, 0);
-                break;
-              }
-              getIMU();
-              heading(0, 0, Yor);
-            }
-          }
-
-          // holonomic(0, 0, 0);
-          // while (abs(pvYaw) > 11 && huskylens.updateBlocks() && !(huskylens.blockSize[1])) heading(0, 0, 0);
-
-          if (!(huskylens.updateBlocks() && huskylens.blockSize[1])) {
-            for (Yor = pvYaw; pvYaw >= -targetyor; Yor--) {
-              if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-                holonomic(0, 0, 0);
-                break;
-              }
-              getIMU();
-              heading(0, 0, Yor);
-            }
-          }
-
-          holonomic(0, 0, 0);
-          // while (abs(pvYaw) > 11 && huskylens.updateBlocks() && !(huskylens.blockSize[1])) heading(0, 0, 0);
-          // if (!(huskylens.updateBlocks() && huskylens.blockSize[1])) {
-          //   for (Yor = pvYaw; pvYaw >= 0; Yor--) {
-          //     if (huskylens.updateBlocks() && huskylens.blockSize[1]) {
-          //       holonomic(0, 0, 0);
-          //       break;
-          //     }
-          //     getIMU();
-          //     heading(0, 0, Yor);
-          //   }
-          // }
-
-          if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef || (huskylens.updateBlocks() && huskylens.blockSize[1])) {
-            holonomic(0, 0, 0);
-            state = 0;
-            break;
-          }
-        }
-        while (abs(pvYaw) > 11 && huskylens.updateBlocks() && !(huskylens.blockSize[1])) heading(0, 0, 0);
-        state = 3;
-      } else if (state == 4) {
-        count = 0;
-        // beep();
-        // holonomic(0, 0, 0);
-        // if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef) {
-        //   holonomic(0, 0, 0);
-        //   state = 0;
-        //   break;
-        // }
-        // loopTimer = millis();
-        // while (millis() - loopTimer <= 2000) {
-        loopTimer = millis();
-        while (millis() - loopTimer <= 150) {
-          getIMU();
-          heading(80, 180, 0);
-
-          if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef || (huskylens.updateBlocks() && huskylens.blockSize[1])) {
-            if (analogRead(SensL) > SenLRef) holonomic(80, 0, 0), delay(200);
-            else if (analogRead(SensR) > SenRRef) holonomic(80, 180, 0), delay(200);
-            else if (analogRead(SensC) > SenCRef) holonomic(80, 270, 0), delay(200);
-            holonomic(0, 0, 0);
-            state = 0;
-            break;
-          }
-        }
-
-        loopTimer = millis();
-        while (state == 3 && millis() - loopTimer <= 900) {
-          getIMU();
-          heading(80, 0, 0);
-
-          if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef) {
-            if (analogRead(SensL) > SenLRef) holonomic(80, 0, 0), delay(200);
-            else if (analogRead(SensR) > SenRRef) holonomic(80, 180, 0), delay(200);
-            else if (analogRead(SensC) > SenCRef) holonomic(80, 270, 0), delay(200);
-            holonomic(0, 0, 0);
-            state = 0;
-            break;
-          }
-        }
-        loopTimer = millis();
-        while (state == 3 && millis() - loopTimer <= 100) {
-          getIMU();
-          heading(80, 180, 0);
-
-          if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef) {
-            if (analogRead(SensL) > SenLRef) holonomic(80, 0, 0), delay(200);
-            else if (analogRead(SensR) > SenRRef) holonomic(80, 180, 0), delay(200);
-            else if (analogRead(SensC) > SenCRef) holonomic(80, 270, 0), delay(200);
-            holonomic(0, 0, 0);
-            state = 0;
-            break;
-          }
-        }
-        // loopTimer = millis();
-        // while (state == 2 && millis() - loopTimer <= 450) {
-        //   getIMU();
-        //   heading(80, 245, 0);
-
-        //   if (analogRead(SensL) > SenLRef || analogRead(SensR) > SenRRef || analogRead(SensC) > SenCRef) {
-        //     holonomic(0, 0, 0);
-        //     state = 0;
-        //     break;
-        //   }
-        // }
-
-      } else if (state == 3) {
-        count = 0;
-        // int direction = 0;
-        long startTime = millis();
-        loopTimer = millis();
-        int rand = random(0, 1000);
-        vecCurveV = (rand <= 500) ? 170 : 10;
-        while (millis() - loopTimer <= 6000 && !(huskylens.updateBlocks() && huskylens.blockSize[1])) {
-          getIMU();
-          heading(80, vecCurveV, 0);
-          if (analogRead(SensL) > SenLRef && analogRead(SensR) < SenRRef) {
-            vecCurveV = 5;
-            startTime = millis();
-          } else if (analogRead(SensL) < SenLRef && analogRead(SensR) > SenRRef) {
-            vecCurveV = 175;
-            startTime = millis();
-          }
-          if (millis() - startTime >= random(800, 1000)) {
-            vecCurveV = (vecCurveV == 5) ? 175 : 5;
-            startTime = millis();
-          }
-        }
-        state = 0;
-      }
-    }
-  }
 }
-// while (millis() - loopTimer <= 3000) {
-
-
-// FoundLeft = (analogRead(SensL) > SenLRef) ? 1 : 0;
-// FoundRight = (analogRead(SensR) > SenRRef) ? 1 : 0;
-
-// loopTimer = millis();
